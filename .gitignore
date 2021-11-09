@@ -1,3 +1,2 @@
 .vscode
-liblistener.so
-*.o
+build
