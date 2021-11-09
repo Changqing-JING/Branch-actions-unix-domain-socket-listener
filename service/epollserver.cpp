@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "server.h"
+#include "epollserver.h"
 
 EpollServer::EpollServer() {
   m_epoll_fd = epoll_create(1);
@@ -69,7 +69,7 @@ void EpollServer::server_loop() {
     }
     // other socked
     if (event.events & EPOLLIN) {
-      if (-1 == m_on_recv_data(event.data.fd)) {
+      if (CONNECT_ERROR == m_on_recv_data(event.data.fd)) {
         this->remove_client(event.data.fd);
       }
       continue;
@@ -87,7 +87,8 @@ void EpollServer::accept_new_client() {
     throw std::runtime_error("accept");
   }
   epoll_event epollEvent{};
-  epollEvent.events = EPOLLIN | EPOLLET;
+  // epollEvent.events = EPOLLIN | EPOLLET;
+  epollEvent.events = EPOLLIN;
   epollEvent.data.fd = fd;
   EpollServer::set_nonblock(fd);
   epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, fd, &epollEvent);

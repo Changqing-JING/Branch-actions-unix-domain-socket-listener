@@ -73,7 +73,7 @@ extern int accept4(int fd, struct sockaddr *addr, socklen_t *len, int flags) {
 extern ssize_t send(int fd, const void *buf, size_t size, int flags) {
   typedef ssize_t (*libcall)(int, const void *, size_t, int);
   GET_OLD_HANDLE(send);
-  serialize(fd, WRITE_STREAM, buf, size);
+  output(fd, WRITE_STREAM, buf, size);
   return origin_func(fd, buf, size, flags);
 }
 
@@ -81,7 +81,7 @@ extern ssize_t recv(int fd, void *buf, size_t size, int flags) {
   typedef ssize_t (*libcall)(int, void *, size_t, int);
   GET_OLD_HANDLE(recv);
   ssize_t res = origin_func(fd, buf, size, flags);
-  serialize(fd, READ_STREAM, buf, res);
+  output(fd, READ_STREAM, buf, res);
   return res;
 }
 
@@ -91,7 +91,7 @@ extern ssize_t sendto(int fd, const void *buf, size_t size, int flags,
                              const struct sockaddr *, socklen_t);
   GET_OLD_HANDLE(sendto);
   bind_addr(fd, addr);
-  serialize(fd, WRITE_STREAM, buf, size);
+  output(fd, WRITE_STREAM, buf, size);
   return origin_func(fd, buf, size, flags, addr, len);
 }
 
@@ -102,7 +102,7 @@ extern ssize_t recvfrom(int fd, void *buf, size_t size, int flags,
   GET_OLD_HANDLE(recvfrom);
   ssize_t res = origin_func(fd, buf, size, flags, addr, len);
   bind_addr(fd, addr);
-  serialize(fd, READ_STREAM, buf, res);
+  output(fd, READ_STREAM, buf, res);
   return res;
 }
 
@@ -110,8 +110,7 @@ extern ssize_t sendmsg(int fd, const struct msghdr *msg, int flags) {
   typedef ssize_t (*libcall)(int, const struct msghdr *, int);
   GET_OLD_HANDLE(sendmsg);
   for (int i = 0, k = msg->msg_iovlen; i < k; i++) {
-    serialize(fd, WRITE_STREAM, msg->msg_iov[i].iov_base,
-              msg->msg_iov[i].iov_len);
+    output(fd, WRITE_STREAM, msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
   }
   return origin_func(fd, msg, flags);
 }
@@ -125,9 +124,9 @@ extern ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
     ssize_t msglen = msg->msg_iov[i].iov_len;
     if (remainlen >= msglen) {
       remainlen -= msglen;
-      serialize(fd, READ_STREAM, msg->msg_iov[i].iov_base, msglen);
+      output(fd, READ_STREAM, msg->msg_iov[i].iov_base, msglen);
     } else {
-      serialize(fd, READ_STREAM, msg->msg_iov[i].iov_base, remainlen);
+      output(fd, READ_STREAM, msg->msg_iov[i].iov_base, remainlen);
       break;
     }
   }
@@ -160,7 +159,7 @@ extern int recvmmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen,
 extern ssize_t write(int fd, const void *buf, size_t size) {
   typedef ssize_t (*libcall)(int, const void *, size_t);
   GET_OLD_HANDLE(write);
-  serialize(fd, WRITE_STREAM, buf, size);
+  output(fd, WRITE_STREAM, buf, size);
   return origin_func(fd, buf, size);
 }
 
@@ -168,7 +167,7 @@ extern ssize_t read(int fd, void *buf, size_t size) {
   typedef ssize_t (*libcall)(int, void *, size_t);
   GET_OLD_HANDLE(read);
   ssize_t res = origin_func(fd, buf, size);
-  serialize(fd, READ_STREAM, buf, res);
+  output(fd, READ_STREAM, buf, res);
   return res;
 }
 

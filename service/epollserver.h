@@ -4,6 +4,9 @@
 #include <functional>
 #include <sys/epoll.h>
 
+#define CONNECT_ERROR -1
+#define CONNECT_OK 0
+
 const int MAX_EPOLL_EVENT = 10;
 
 class EpollServer {
