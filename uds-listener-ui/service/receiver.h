@@ -36,9 +36,15 @@ public:
     std::memcpy(p_data, _data, _p.data_len);
   }
   Data(Data const &a) { copy(a); }
-  Data &operator=(Data const &a) { copy(a); }
+  Data &operator=(Data const &a) {
+    copy(a);
+    return *this;
+  }
   Data(Data &&a) { swap(std::move(a)); }
-  Data &operator=(Data &&a) { swap(std::move(a)); }
+  Data &operator=(Data &&a) {
+    swap(std::move(a));
+    return *this;
+  }
 
   ~Data() { std::free(p_data); }
 

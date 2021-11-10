@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(ui LANGUAGES CXX)
+project(uds-listener-ui LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -30,7 +30,7 @@ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets LinguistTools REQUIRED)
 set(TS_FILES ui_en_001.ts)
 
 if(ANDROID)
-  add_library(ui SHARED
+  add_library(uds-listener-ui SHARED
     main.cpp
     mainwindow.cpp
     mainwindow.h
@@ -38,7 +38,7 @@ if(ANDROID)
     ${TS_FILES}
   )
 else()
-  add_executable(ui
+  add_executable(uds-listener-ui
     main.cpp
     mainwindow.cpp
     mainwindow.h
@@ -47,6 +47,10 @@ else()
   )
 endif()
 
-target_link_libraries(ui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(uds-listener-ui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
+
+add_subdirectory(service)
+
+target_link_libraries(uds-listener-ui PRIVATE unix-domain-socket-receiver)
