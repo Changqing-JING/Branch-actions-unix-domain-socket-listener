@@ -72,30 +72,41 @@ private:
   }
 };
 
+enum ReceiverStatus : int8_t { INIT, START, STOPING, STOP };
+
 class Receiver {
   EpollServer *m_eps;
   std::mutex m_mutex;
-  std::atomic_bool m_enable;
+  std::atomic<ReceiverStatus> m_status;
   std::condition_variable m_cv;
   std::queue<Data> m_recv_messages;
   std::thread m_eventloopThread;
 
 public:
-  Receiver() : m_eps(nullptr), m_enable(false) {}
-
-  void start(uint16_t port) {
-    m_enable.store(true);
-    m_eps = new EpollServer{};
-    Eventloop::getInstance().insert_job(0, [this, port]() {
-      this->m_eps->init_server(
-          port, [this](int fd) { return this->onReceiveData(fd); });
-      std::cout << "receiver start\n";
-      this->serverloop();
-    });
+  Receiver() : m_eps(nullptr), m_status(ReceiverStatus::INIT) {
     m_eventloopThread = std::thread{[]() { Eventloop::getInstance().run(); }};
   }
 
-  void stop() { m_enable.store(false); }
+  void start(uint16_t port) {
+    {
+      std::lock_guard<std::mutex> lo(m_mutex);
+      if (m_status == ReceiverStatus::INIT ||
+          m_status == ReceiverStatus::STOP) {
+        m_eps = new EpollServer{};
+        m_eps->init_server(port,
+                           [this](int fd) { return this->onReceiveData(fd); });
+      } else if (m_status == ReceiverStatus::STOPING) {
+      } else {
+        throw std::runtime_error("start receiver under error status");
+      }
+      m_status = ReceiverStatus::START;
+    }
+
+    Eventloop::getInstance().insert_job(0,
+                                        [this, port]() { this->serverloop(); });
+  }
+
+  void stop() { m_status = ReceiverStatus::STOPING; }
 
   Data popMessage() {
     std::unique_lock<std::mutex> lo(m_mutex);
@@ -110,12 +121,13 @@ public:
 private:
   void serverloop() {
     m_eps->server_loop();
-    if (m_enable.load()) {
+    if (m_status != ReceiverStatus::STOPING) {
       Eventloop::getInstance().insert_job(1000,
                                           [this]() { this->serverloop(); });
     } else {
+      std::lock_guard<std::mutex> lo{m_mutex};
       delete m_eps;
-      std::cout << "receiver end\n";
+      m_status = ReceiverStatus::STOP;
     }
   }
 
