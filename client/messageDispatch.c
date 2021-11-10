@@ -119,6 +119,10 @@ int dispatch() {
       status = DEFAULT;
       return 2;
     }
+    char *ip = getenv("UNIX_DOMAIN_SOCKET_FORWARD_IP");
+    if (ip == NULL) {
+      ip = "127.0.0.1";
+    }
 
     status -= UNINIT;
     int old_errno = errno;
@@ -129,7 +133,7 @@ int dispatch() {
     }
     memset(&service_addr, 0, sizeof(service_addr));
     service_addr.sin_family = AF_INET;
-    service_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    service_addr.sin_addr.s_addr = inet_addr(ip);
     service_addr.sin_port = htons(atoi(port));
     if (-1 ==
         connect(fd, (struct sockaddr *)&service_addr, sizeof(service_addr))) {
