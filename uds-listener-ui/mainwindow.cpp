@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+constexpr int DATA_PRE_LINE = 20;
 const QStringList labels =
     QObject::tr("fd,path,R/W,data,str").simplified().split(",");
 
@@ -20,9 +21,9 @@ MainWindow::MainWindow(QWidget *parent)
                                                      QHeaderView::Interactive);
   ui->Data->horizontalHeader()->setSectionResizeMode(4,
                                                      QHeaderView::Interactive);
-  ui->Data->setColumnWidth(1, 100);
-  ui->Data->setColumnWidth(3, 600);
-  ui->Data->setColumnWidth(4, 200);
+  ui->Data->setColumnWidth(1, 200);
+  ui->Data->setColumnWidth(3, DATA_PRE_LINE * 8 * 3);
+  ui->Data->setColumnWidth(4, DATA_PRE_LINE * 8);
 
   ui->Data->show();
 
@@ -65,6 +66,9 @@ std::shared_ptr<std::string> hexData(void *data, int len) {
     res->push_back(t[0]);
     res->push_back(t[1]);
     res->push_back(' ');
+    if ((i + 1) % DATA_PRE_LINE == 0) {
+      res->push_back('\n');
+    }
   }
   return res;
 }
@@ -73,6 +77,9 @@ std::shared_ptr<std::string> strData(void *data, int len) {
   for (int i = 0; i < len; i++) {
     int ascii = static_cast<uint8_t *>(data)[i];
     res->push_back(ascii > 20 ? ascii : 46);
+    if ((i + 1) % DATA_PRE_LINE == 0) {
+      res->push_back('\n');
+    }
   }
   return res;
 }
@@ -98,6 +105,8 @@ void MainWindow::display() {
     item = new QStandardItem(
         QString("%1").arg(strData(tmp.p_data, tmp.len)->data()));
     model->setItem(row, 4, item);
+
+    ui->Data->resizeRowToContents(row);
 
     row++;
 
