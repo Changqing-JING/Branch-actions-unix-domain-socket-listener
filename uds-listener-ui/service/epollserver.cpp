@@ -12,7 +12,7 @@
 
 #include "epollserver.h"
 
-EpollServer::EpollServer() {
+EpollServer::EpollServer() : m_listen_fd(-1), m_connect_fds({}) {
   m_epoll_fd = epoll_create(1);
   if (m_epoll_fd == -1) {
     perror("epoll create");
@@ -20,7 +20,13 @@ EpollServer::EpollServer() {
   }
 }
 
-EpollServer::~EpollServer() { close(m_epoll_fd); }
+EpollServer::~EpollServer() {
+  clear_fd(m_listen_fd);
+  for (auto fd : m_connect_fds) {
+    clear_fd(fd);
+  }
+  close(m_epoll_fd);
+}
 
 void EpollServer::init_server(uint16_t port,
                               std::function<int(int)> on_recv_data) {
@@ -92,11 +98,17 @@ void EpollServer::accept_new_client() {
   epollEvent.data.fd = fd;
   EpollServer::set_nonblock(fd);
   epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, fd, &epollEvent);
+  m_connect_fds.insert(fd);
+}
+
+void EpollServer::clear_fd(int fd) {
+  epoll_ctl(m_epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+  close(fd);
 }
 
 void EpollServer::remove_client(int fd) {
-  epoll_ctl(m_epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-  close(fd);
+  clear_fd(fd);
+  m_connect_fds.erase(fd);
 }
 
 void EpollServer::set_nonblock(int fd) {

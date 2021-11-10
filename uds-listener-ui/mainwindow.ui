@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1124</width>
+    <height>652</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,9 +18,9 @@
     <property name="geometry">
      <rect>
       <x>0</x>
-      <y>50</y>
-      <width>791</width>
-      <height>501</height>
+      <y>40</y>
+      <width>1121</width>
+      <height>581</height>
      </rect>
     </property>
     <property name="widgetResizable">
@@ -31,18 +31,24 @@
       <rect>
        <x>0</x>
        <y>0</y>
-       <width>789</width>
-       <height>499</height>
+       <width>1119</width>
+       <height>579</height>
       </rect>
      </property>
-     <widget class="QListView" name="Data">
+     <widget class="QTableView" name="Data">
       <property name="geometry">
        <rect>
-        <x>0</x>
+        <x>10</x>
         <y>10</y>
-        <width>791</width>
-        <height>501</height>
+        <width>1101</width>
+        <height>551</height>
        </rect>
+      </property>
+      <property name="sortingEnabled">
+       <bool>true</bool>
+      </property>
+      <property name="cornerButtonEnabled">
+       <bool>false</bool>
       </property>
      </widget>
     </widget>
@@ -102,7 +108,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>1124</width>
      <height>22</height>
     </rect>
    </property>

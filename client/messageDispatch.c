@@ -93,10 +93,10 @@ void send_by_socket(int outfd, int fd, int isRead, const char *data,
   out->isRead = isRead;
   out->data_len = data_len;
   memcpy(out->data, data, data_len);
-  if (send(2, out, sizeof(struct serilize_socket_data) + data_len,
+  if (send(outfd, out, sizeof(struct serilize_socket_data) + data_len,
            MSG_NOSIGNAL) <= 0) {
     status = UNINIT | UNCONNECT;
-    close(fd);
+    close(outfd);
   }
 }
 
@@ -150,6 +150,8 @@ int dispatch() {
     status = 0;
     return fd;
   }
+
+  return 2;
 }
 
 void output(int fd, int isRead, const char *data, int data_len) {

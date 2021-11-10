@@ -52,5 +52,5 @@ target_link_libraries(uds-listener-ui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
 add_subdirectory(service)
-
 target_link_libraries(uds-listener-ui PRIVATE unix-domain-socket-receiver)
+target_link_libraries(uds-listener-ui PUBLIC pthread)

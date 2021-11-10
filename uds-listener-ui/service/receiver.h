@@ -2,6 +2,7 @@
 
 #include <condition_variable>
 #include <cstring>
+#include <iostream>
 #include <mutex>
 #include <queue>
 #include <thread>
@@ -40,13 +41,17 @@ public:
     copy(a);
     return *this;
   }
-  Data(Data &&a) { swap(std::move(a)); }
+  Data(Data &&a) { move(std::move(a)); }
   Data &operator=(Data &&a) {
-    swap(std::move(a));
+    move(std::move(a));
     return *this;
   }
 
-  ~Data() { std::free(p_data); }
+  ~Data() {
+    // if (p_data != nullptr) {
+    std::free(p_data);
+    // }
+  }
 
 private:
   void copy(Data const &a) {
@@ -57,32 +62,42 @@ private:
     p_data = std::malloc(a.len);
     std::memcpy(p_data, a.p_data, a.len);
   }
-  void swap(Data &&a) {
+  void move(Data &&a) {
     fd = a.fd;
     isRead = a.isRead;
     len = a.len;
     std::memcpy(path, a.path, 108);
-    std::swap(p_data, a.p_data);
+    p_data = a.p_data;
+    a.p_data = nullptr;
   }
 };
 
 class Receiver {
-  EpollServer m_eps;
+  EpollServer *m_eps;
   std::mutex m_mutex;
+  std::atomic_bool m_enable;
   std::condition_variable m_cv;
   std::queue<Data> m_recv_messages;
+  std::thread m_eventloopThread;
 
 public:
-  Receiver(uint16_t port) : m_eps(EpollServer{}) {
+  Receiver() : m_eps(nullptr), m_enable(false) {}
+
+  void start(uint16_t port) {
+    m_enable.store(true);
+    m_eps = new EpollServer{};
     Eventloop::getInstance().insert_job(0, [this, port]() {
-      this->m_eps.init_server(
+      this->m_eps->init_server(
           port, [this](int fd) { return this->onReceiveData(fd); });
+      std::cout << "receiver start\n";
       this->serverloop();
     });
-    std::thread{[]() { Eventloop::getInstance().run(); }};
+    m_eventloopThread = std::thread{[]() { Eventloop::getInstance().run(); }};
   }
 
-  Data get_message() {
+  void stop() { m_enable.store(false); }
+
+  Data popMessage() {
     std::unique_lock<std::mutex> lo(m_mutex);
     m_cv.wait(lo, [this]() { return !this->m_recv_messages.empty(); });
     Data front = std::move(m_recv_messages.front());
@@ -90,10 +105,18 @@ public:
     return front;
   }
 
+  bool canPopMessage() { return !m_recv_messages.empty(); }
+
 private:
   void serverloop() {
-    m_eps.server_loop();
-    Eventloop::getInstance().insert_job(1000, [this]() { this->serverloop(); });
+    m_eps->server_loop();
+    if (m_enable.load()) {
+      Eventloop::getInstance().insert_job(1000,
+                                          [this]() { this->serverloop(); });
+    } else {
+      delete m_eps;
+      std::cout << "receiver end\n";
+    }
   }
 
   int onReceiveData(int fd) {
@@ -105,13 +128,14 @@ private:
     void *buf = malloc(dataHeader.data_len);
     len = trustRecv(fd, buf, dataHeader.data_len, MSG_WAITALL);
     if (len == 0) {
+      free(buf);
       return CONNECT_ERROR;
     }
-    free(buf);
     {
       std::lock_guard<std::mutex> lo(m_mutex);
       m_recv_messages.emplace(std::move(Data{dataHeader, buf}));
     }
+    free(buf);
     m_cv.notify_all();
     return CONNECT_OK;
   }

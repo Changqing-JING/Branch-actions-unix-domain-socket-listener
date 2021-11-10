@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="ui_en_001">
+<TS version="2.1" language="en_001">
 <context>
     <name>MainWindow</name>
     <message>
@@ -9,13 +9,21 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="mainwindow.ui" line="60"/>
+        <location filename="mainwindow.ui" line="66"/>
         <source>Port</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="mainwindow.ui" line="83"/>
+        <location filename="mainwindow.ui" line="89"/>
         <source>Start</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <location filename="mainwindow.cpp" line="5"/>
+        <source>fd,path,R/W,data,str</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
