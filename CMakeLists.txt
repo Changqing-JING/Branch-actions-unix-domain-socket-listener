@@ -7,4 +7,5 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_subdirectory(client)
 add_subdirectory(service)
+add_subdirectory(ui)
 add_subdirectory(test)
