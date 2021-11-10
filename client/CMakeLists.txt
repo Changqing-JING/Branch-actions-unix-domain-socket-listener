@@ -1,4 +1,4 @@
-project(liblistener)
+project(listener)
 
 aux_source_directory(. srclists)
 add_library(${PROJECT_NAME} SHARED ${srclists})
