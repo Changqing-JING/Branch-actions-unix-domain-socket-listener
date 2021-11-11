@@ -5,7 +5,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_subdirectory(client)
-add_subdirectory(uds-listener-ui)
-add_subdirectory(test)
+set(CMAKE_CXX_STANDARD 17)
 
+
+add_subdirectory(client)
+add_subdirectory(uds-listener)
+add_subdirectory(test)

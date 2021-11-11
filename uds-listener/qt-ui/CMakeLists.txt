@@ -8,7 +8,6 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # QtCreator supports the following variables for Android, which are identical to qmake Android variables.
@@ -51,6 +50,4 @@ target_link_libraries(uds-listener-ui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
-add_subdirectory(service)
 target_link_libraries(uds-listener-ui PRIVATE unix-domain-socket-receiver)
-target_link_libraries(uds-listener-ui PUBLIC pthread)

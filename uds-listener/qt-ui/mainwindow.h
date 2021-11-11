@@ -5,7 +5,7 @@
 #include <QtCore/QTimer>
 #include <QtGui/QStandardItemModel>
 
-#include "./service/receiver.h"
+#include "../kern-service/receiver.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {

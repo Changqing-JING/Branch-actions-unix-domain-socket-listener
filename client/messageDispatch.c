@@ -1,8 +1,10 @@
 #define __USE_POSIX
+#define _GNU_SOURCE
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +18,12 @@
 
 #define MAX_FD 1024
 
+pthread_mutex_t mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+volatile int init_mutex = 0;
+
+void lock() { pthread_mutex_lock(&mutex); }
+void unlock() { pthread_mutex_unlock(&mutex); }
+
 typedef struct FDStatus {
   int protocol;
   char path[108];
@@ -24,14 +32,18 @@ typedef struct FDStatus {
 static FDStatus fd_status[MAX_FD];
 
 void register_fd(int fd, int protocol) {
+  lock();
   if (fd >= 0 && fd < MAX_FD) {
     fd_status[fd].protocol = protocol;
   }
+  unlock();
 }
 void unregister_fd(int fd) {
+  lock();
   if (fd >= 0 && fd < MAX_FD) {
     fd_status[fd].protocol = -1;
   }
+  unlock();
 }
 int get_fd_protocol(int fd) {
   if (fd >= 0 && fd < MAX_FD) {
@@ -48,12 +60,14 @@ void bind_addr(int fd, const struct sockaddr *addr) {
   if (!check_fd_unix(fd)) {
     return;
   }
+  lock();
   if (addr == NULL) {
     fd_status[fd].path[0] = '\0';
     return;
   }
   struct sockaddr_un *addr_un = (struct sockaddr_un *)addr;
   memcpy(fd_status[fd].path, addr_un->sun_path, 108);
+  unlock();
 }
 
 #define UNINIT 1
@@ -125,14 +139,17 @@ int dispatch() {
   // init
   if (status & UNINIT) {
     char *port = getenv("UNIX_DOMAIN_SOCKET_FORWARD_PORT");
-    if (port == NULL) {
+    if (port == NULL || strlen(port) == 0) {
       status = DEFAULT;
+      printf("stderr\n");
       return 2;
     }
+    printf("%s\n", port);
     char *ip = getenv("UNIX_DOMAIN_SOCKET_FORWARD_IP");
-    if (ip == NULL) {
+    if (ip == NULL || strlen(ip) == 0) {
       ip = "127.0.0.1";
     }
+    printf("%s\n", ip);
 
     status -= UNINIT;
     int old_errno = errno;
@@ -148,13 +165,17 @@ int dispatch() {
   }
 
   if (status & UNCONNECT) {
+    printf("connecting\n");
     int old_errno = errno;
     if (-1 ==
         connect(fd, (struct sockaddr *)&service_addr, sizeof(service_addr))) {
+      perror("connect");
       errno = old_errno;
       return 2;
     }
+    printf("connected\n");
     send_name_by_socket(fd);
+    printf("first send\n");
     status = 0;
     return fd;
   }
@@ -166,10 +187,12 @@ void output(int fd, int isRead, const char *data, int data_len) {
   if (!check_fd_unix(fd)) {
     return;
   }
+  lock();
   int outfd = dispatch();
   if (outfd == 2) {
     send_by_stderr(fd, isRead, data, data_len);
   } else {
     send_by_socket(outfd, fd, isRead, data, data_len);
   }
+  unlock();
 }
