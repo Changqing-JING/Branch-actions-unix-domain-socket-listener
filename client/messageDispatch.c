@@ -11,6 +11,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "../common/interface.h"
 #include "messageDispatch.h"
 
 #define MAX_FD 1024
@@ -74,30 +75,39 @@ void send_by_stderr(int fd, int isRead, const char *data, int data_len) {
   write(2, out, now - out + 1);
 }
 
-#pragma pack(1)
-struct serilize_socket_data {
-  int fd;
-  char path[108];
-  int isRead;
-  int data_len;
-  char data[0];
-};
-#pragma pack()
-
 void send_by_socket(int outfd, int fd, int isRead, const char *data,
                     int data_len) {
-  struct serilize_socket_data *out =
-      malloc(sizeof(struct serilize_socket_data) + data_len);
-  out->fd = fd;
-  memcpy(out->path, fd_status[fd].path, 108);
-  out->isRead = isRead;
-  out->data_len = data_len;
-  memcpy(out->data, data, data_len);
-  if (send(outfd, out, sizeof(struct serilize_socket_data) + data_len,
+  struct serialize_socket_data *output_data =
+      malloc(sizeof(serialize_socket_data) + data_len);
+  output_data->fd = fd;
+  memcpy(output_data->path, fd_status[fd].path, 108);
+  output_data->isRead = isRead;
+  output_data->data_len = data_len;
+  memcpy(output_data->data, data, data_len);
+  if (send(outfd, output_data, sizeof(serialize_socket_data) + data_len,
            MSG_NOSIGNAL) <= 0) {
     status = UNINIT | UNCONNECT;
     close(outfd);
   }
+  free(output_data);
+}
+
+void send_name_by_socket(int fd) {
+  pid_t pid = getpid();
+  char proc_pid_path[256];
+  char line_buf[256];
+  static init_socket_data init_data;
+  init_data.magic = MAGIC_CODE;
+  sprintf(proc_pid_path, "/proc/%d/status", pid);
+  FILE *fp = fopen(proc_pid_path, "r");
+  if (NULL != fp && fgets(line_buf, 255, fp) != NULL) {
+    int res = sscanf(line_buf, "Name:%255s", init_data.pid_name);
+    if (res == EOF) {
+      sprintf(init_data.pid_name, "%d", pid);
+    }
+    send(fd, &init_data, sizeof(init_data), MSG_NOSIGNAL);
+  }
+  fclose(fp);
 }
 
 int dispatch() {
@@ -135,13 +145,6 @@ int dispatch() {
     service_addr.sin_family = AF_INET;
     service_addr.sin_addr.s_addr = inet_addr(ip);
     service_addr.sin_port = htons(atoi(port));
-    if (-1 ==
-        connect(fd, (struct sockaddr *)&service_addr, sizeof(service_addr))) {
-      errno = old_errno;
-      return 2;
-    }
-    status = 0;
-    return fd;
   }
 
   if (status & UNCONNECT) {
@@ -151,6 +154,7 @@ int dispatch() {
       errno = old_errno;
       return 2;
     }
+    send_name_by_socket(fd);
     status = 0;
     return fd;
   }

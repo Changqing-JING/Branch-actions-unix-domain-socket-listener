@@ -2,7 +2,7 @@
 
 #include "receiver.h"
 
-Data::Data(socket_data &_p, void *_data)
+Data::Data(serialize_socket_data &_p, void *_data)
     : fd(_p.fd), isRead(_p.isRead), len(_p.data_len) {
   std::memcpy(path, _p.path, 108);
   p_data = std::malloc(_p.data_len);
@@ -52,6 +52,16 @@ Data Receiver::popMessage() {
   return front;
 }
 
+std::string Receiver::getProcessName(int fd) {
+  std::unique_lock<std::mutex> lo(m_mutex);
+  auto find_res = m_connec_map.find(fd);
+  if (find_res == m_connec_map.end()) {
+    return std::string{""};
+  } else {
+    return find_res->second;
+  }
+}
+
 void Receiver::serverloop() {
   m_eps->server_loop();
   if (m_status != ReceiverStatus::STOPING) {
@@ -64,22 +74,45 @@ void Receiver::serverloop() {
 }
 
 int Receiver::onReceiveData(int fd) {
-  socket_data dataHeader;
-  int len = trustRecv(fd, &dataHeader, sizeof(dataHeader), MSG_WAITALL);
+  decltype(serialize_socket_data::fd) prot;
+  auto len = trustRecv(fd, &prot, sizeof(prot), MSG_WAITALL);
   if (len == 0) {
     return CONNECT_ERROR;
   }
-  void *buf = malloc(dataHeader.data_len);
-  len = trustRecv(fd, buf, dataHeader.data_len, MSG_WAITALL);
-  if (len == 0) {
+  switch (prot) {
+  case MAGIC_CODE:
+    init_socket_data data;
+    len = trustRecv(fd, reinterpret_cast<char *>(&data) + sizeof(prot),
+                    sizeof(data) - sizeof(prot), MSG_WAITALL);
+    if (len == 0) {
+      return CONNECT_ERROR;
+    }
+    {
+      std::lock_guard<std::mutex> lo(m_mutex);
+      m_connec_map.insert_or_assign(fd, std::string{data.pid_name});
+    }
+    break;
+
+  default:
+    serialize_socket_data dataHeader;
+    dataHeader.fd = fd;
+    len = trustRecv(fd, reinterpret_cast<char *>(&dataHeader) + sizeof(prot),
+                    sizeof(dataHeader) - sizeof(prot), MSG_WAITALL);
+    if (len == 0) {
+      return CONNECT_ERROR;
+    }
+    void *buf = malloc(dataHeader.data_len);
+    len = trustRecv(fd, buf, dataHeader.data_len, MSG_WAITALL);
+    if (len == 0) {
+      free(buf);
+      return CONNECT_ERROR;
+    }
+    {
+      std::lock_guard<std::mutex> lo(m_mutex);
+      m_recv_messages.emplace(std::move(Data{dataHeader, buf}));
+    }
     free(buf);
-    return CONNECT_ERROR;
+    m_cv.notify_all();
   }
-  {
-    std::lock_guard<std::mutex> lo(m_mutex);
-    m_recv_messages.emplace(std::move(Data{dataHeader, buf}));
-  }
-  free(buf);
-  m_cv.notify_all();
   return CONNECT_OK;
 }

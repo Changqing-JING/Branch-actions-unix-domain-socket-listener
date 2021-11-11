@@ -3,7 +3,7 @@
 
 constexpr int DATA_PRE_LINE = 20;
 const QStringList labels =
-    QObject::tr("fd,path,R/W,data,str").simplified().split(",");
+    QObject::tr("process,path,R/W,hex,str").simplified().split(",");
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), m_recviver(),
@@ -93,7 +93,8 @@ void MainWindow::display() {
         dynamic_cast<QStandardItemModel *>(ui->Data->model());
     //定义item
     QStandardItem *item;
-    item = new QStandardItem(QString("%1").arg(tmp.fd));
+    item = new QStandardItem(
+        QString("%1").arg(m_recviver.getProcessName(tmp.fd).data()));
     model->setItem(row, 0, item);
     item = new QStandardItem(QString("%1").arg(tmp.path));
     model->setItem(row, 1, item);
