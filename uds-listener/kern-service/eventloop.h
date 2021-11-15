@@ -9,7 +9,7 @@
 
 using CallBack = std::function<void()>;
 using steady_clock = std::chrono::steady_clock;
-using TimeStandard = std::chrono::microseconds;
+using TimeStandard = std::chrono::milliseconds;
 using Task = std::tuple<TimeStandard, CallBack, CallBack>;
 
 struct greater {
@@ -39,7 +39,7 @@ public:
 
 private:
   TimeStandard singleLoop();
-  Eventloop() : m_defaultStep(TimeStandard{1000}){};
+  Eventloop() : m_defaultStep(TimeStandard{100}){};
   ~Eventloop(){};
   Eventloop(const Eventloop &) = delete;
   Eventloop &operator=(const Eventloop &) = delete;

@@ -93,8 +93,7 @@ void MainWindow::display() {
         dynamic_cast<QStandardItemModel *>(ui->Data->model());
     //定义item
     QStandardItem *item;
-    item = new QStandardItem(
-        QString("%1").arg(m_recviver.getProcessName(tmp.fd).data()));
+    item = new QStandardItem(QString("%1").arg(tmp.process_name));
     model->setItem(row, 0, item);
     item = new QStandardItem(QString("%1").arg(tmp.path));
     model->setItem(row, 1, item);

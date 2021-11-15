@@ -16,7 +16,7 @@ binary is in `build/bin`, `uds-listener-ui`(server with UI) and `liblistener.so`
 1. set environment: if both env is undefined, will print the result to `stderr`
 ```bash
 export UNIX_DOMAIN_SOCKET_FORWARD_IP=127.0.0.1  # target server ip, default localhost
-export UNIX_DOMAIN_SOCKET_FORWARD_PORT=1234       # target server port
+export UNIX_DOMAIN_SOCKET_FORWARD_PORT=12345       # target server port
 export LD_PRELOAD=./liblistener.so                # path to liblistener.so
 ```
 

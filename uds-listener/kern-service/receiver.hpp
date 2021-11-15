@@ -15,12 +15,12 @@
 
 class Data {
 public:
-  int fd;
-  char path[108];
-  int isRead;
-  int len;
+  char process_name[sizeof(((serialize_socket_data *)0)->process_name)];
+  char path[sizeof(((serialize_socket_data *)0)->path)];
+  decltype(((serialize_socket_data *)0)->isRead) isRead;
+  decltype(((serialize_socket_data *)0)->data_len) len;
   void *p_data;
-  Data() = delete;
+  Data() : p_data(nullptr){};
   Data(serialize_socket_data &_p, void *_data);
   Data(Data const &a) { copy(a); }
   Data &operator=(Data const &a) {
@@ -33,7 +33,11 @@ public:
     return *this;
   }
 
-  ~Data() { std::free(p_data); }
+  ~Data() {
+    if (p_data != nullptr) {
+      (std::free(p_data));
+    }
+  }
 
 private:
   void copy(Data const &a);
@@ -55,6 +59,11 @@ class Receiver {
 public:
   Receiver() : m_eps(nullptr), m_status(ReceiverStatus::INIT) {
     m_eventloopThread = std::thread{[]() { Eventloop::getInstance().run(); }};
+  }
+  ~Receiver() {
+    if (m_eventloopThread.joinable()) {
+      m_eventloopThread.join();
+    }
   }
 
   void start(uint16_t port);

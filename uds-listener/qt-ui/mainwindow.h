@@ -1,11 +1,10 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QMainWindow>
 #include <QtCore/QTimer>
 #include <QtGui/QStandardItemModel>
 
-#include "../kern-service/receiver.h"
+#include "../kern-service/receiver.hpp"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -32,4 +31,3 @@ private:
   void onListenerDisable();
   void display();
 };
-#endif // MAINWINDOW_H

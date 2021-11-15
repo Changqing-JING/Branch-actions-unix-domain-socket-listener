@@ -1,27 +1,40 @@
+#include <arpa/inet.h>
 #include <cstring>
 
-#include "receiver.h"
+#include "receiver.hpp"
 
-Data::Data(serialize_socket_data &_p, void *_data)
-    : fd(_p.fd), isRead(_p.isRead), len(_p.data_len) {
-  std::memcpy(path, _p.path, 108);
-  p_data = std::malloc(_p.data_len);
-  std::memcpy(p_data, _data, _p.data_len);
+Data::Data(serialize_socket_data &a, void *_data)
+    : isRead(a.isRead), len(a.data_len) {
+  std::memcpy(process_name, a.process_name, sizeof(process_name));
+  std::memcpy(path, a.path, sizeof(path));
+  if (len > 0) {
+    p_data = std::malloc(a.data_len);
+    std::memcpy(p_data, _data, len);
+  } else {
+    p_data = nullptr;
+  }
 }
 
 void Data::copy(Data const &a) {
-  fd = a.fd;
+  std::memcpy(process_name, a.process_name, sizeof(process_name));
   isRead = a.isRead;
   len = a.len;
-  std::memcpy(path, a.path, 108);
-  p_data = std::malloc(a.len);
-  std::memcpy(p_data, a.p_data, a.len);
+  std::memcpy(path, a.path, sizeof(path));
+  if (p_data != nullptr) {
+    free(p_data);
+  }
+  if (len > 0) {
+    p_data = std::malloc(len);
+    std::memcpy(p_data, a.p_data, len);
+  } else {
+    p_data = nullptr;
+  }
 }
 void Data::move(Data &&a) {
-  fd = a.fd;
+  std::memcpy(process_name, a.process_name, sizeof(process_name));
   isRead = a.isRead;
   len = a.len;
-  std::memcpy(path, a.path, 108);
+  std::memcpy(path, a.path, sizeof(path));
   p_data = a.p_data;
   a.p_data = nullptr;
 }
@@ -45,6 +58,7 @@ void Receiver::start(uint16_t port) {
 }
 
 Data Receiver::popMessage() {
+  std::cout << "popMessage\n";
   std::unique_lock<std::mutex> lo(m_mutex);
   m_cv.wait(lo, [this]() { return !this->m_recv_messages.empty(); });
   Data front = std::move(m_recv_messages.front());
@@ -52,17 +66,8 @@ Data Receiver::popMessage() {
   return front;
 }
 
-std::string Receiver::getProcessName(int fd) {
-  std::unique_lock<std::mutex> lo(m_mutex);
-  auto find_res = m_connec_map.find(fd);
-  if (find_res == m_connec_map.end()) {
-    return std::string{""};
-  } else {
-    return find_res->second;
-  }
-}
-
 void Receiver::serverloop() {
+  std::cout << "serverloop\n";
   m_eps->server_loop();
   if (m_status != ReceiverStatus::STOPING) {
     Eventloop::getInstance().insert_job(1000, [this]() { this->serverloop(); });
@@ -74,45 +79,26 @@ void Receiver::serverloop() {
 }
 
 int Receiver::onReceiveData(int fd) {
-  decltype(serialize_socket_data::fd) prot;
-  auto len = trustRecv(fd, &prot, sizeof(prot), MSG_WAITALL);
-  if (len == 0) {
+  std::cout << "onReceiveData\n";
+  serialize_socket_data dataHeader;
+  ssize_t len = trustRecv(fd, reinterpret_cast<char *>(&dataHeader),
+                          sizeof(dataHeader), MSG_WAITALL);
+  if (len < sizeof(dataHeader)) {
     return CONNECT_ERROR;
   }
-  switch (prot) {
-  case MAGIC_CODE:
-    init_socket_data data;
-    len = trustRecv(fd, reinterpret_cast<char *>(&data) + sizeof(prot),
-                    sizeof(data) - sizeof(prot), MSG_WAITALL);
-    if (len == 0) {
-      return CONNECT_ERROR;
-    }
-    {
-      std::lock_guard<std::mutex> lo(m_mutex);
-      m_connec_map.insert_or_assign(fd, std::string{data.pid_name});
-    }
-    break;
-
-  default:
-    serialize_socket_data dataHeader;
-    dataHeader.fd = fd;
-    len = trustRecv(fd, reinterpret_cast<char *>(&dataHeader) + sizeof(prot),
-                    sizeof(dataHeader) - sizeof(prot), MSG_WAITALL);
-    if (len == 0) {
-      return CONNECT_ERROR;
-    }
-    void *buf = malloc(dataHeader.data_len);
-    len = trustRecv(fd, buf, dataHeader.data_len, MSG_WAITALL);
-    if (len == 0) {
-      free(buf);
-      return CONNECT_ERROR;
-    }
-    {
-      std::lock_guard<std::mutex> lo(m_mutex);
-      m_recv_messages.emplace(std::move(Data{dataHeader, buf}));
-    }
+  dataHeader.isRead = ntohs(dataHeader.isRead);
+  dataHeader.data_len = ntohl(dataHeader.data_len);
+  void *buf = malloc(dataHeader.data_len);
+  len = trustRecv(fd, buf, dataHeader.data_len, MSG_WAITALL);
+  if (len == 0) {
     free(buf);
-    m_cv.notify_all();
+    return CONNECT_ERROR;
   }
+  {
+    std::lock_guard<std::mutex> lo(m_mutex);
+    m_recv_messages.emplace(std::move(Data{dataHeader, buf}));
+  }
+  free(buf);
+  m_cv.notify_all();
   return CONNECT_OK;
 }

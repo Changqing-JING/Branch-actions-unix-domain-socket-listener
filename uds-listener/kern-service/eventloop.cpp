@@ -22,8 +22,7 @@ TimeStandard Eventloop::singleLoop() {
   while (!m_jobs.empty()) {
     auto job = m_jobs.top();
     if (std::get<0>(job) > m_loopTime) {
-      return std::chrono::duration_cast<TimeStandard>(std::get<0>(job) -
-                                                      m_loopTime);
+      break;
     }
     m_jobs.pop();
     std::get<1>(job)();

@@ -1,5 +1,4 @@
 .vscode
 build
-build_client
-build_ui
+buildarm
 build-ui-Desktop-Debug

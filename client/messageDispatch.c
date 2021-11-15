@@ -26,7 +26,7 @@ void unlock() { pthread_mutex_unlock(&mutex); }
 
 typedef struct FDStatus {
   int protocol;
-  char path[108];
+  char path[sizeof(((struct sockaddr_un *)0)->sun_path)];
 } FDStatus;
 
 static FDStatus fd_status[MAX_FD];
@@ -63,10 +63,11 @@ void bind_addr(int fd, const struct sockaddr *addr) {
   lock();
   if (addr == NULL) {
     fd_status[fd].path[0] = '\0';
+    unlock();
     return;
   }
   struct sockaddr_un *addr_un = (struct sockaddr_un *)addr;
-  memcpy(fd_status[fd].path, addr_un->sun_path, 108);
+  memcpy(fd_status[fd].path, addr_un->sun_path, sizeof(addr_un->sun_path));
   unlock();
 }
 
@@ -85,43 +86,51 @@ void send_by_stderr(int fd, int isRead, const char *data, int data_len) {
     sprintf(now, "%02x ", (unsigned char)(data[i]));
     now += 3;
   }
-  sprintf(now, "\n");
-  write(2, out, now - out + 1);
+  fprintf(stderr, "%s\n", out);
+  free(out);
+}
+
+void getprocessname(char *process_name /* > 200 */) {
+  pid_t pid = getpid();
+  char proc_pid_path[256];
+  char line_buf[256];
+  sprintf(proc_pid_path, "/proc/%d/status", pid);
+  FILE *fp = fopen(proc_pid_path, "r");
+  if (fp == NULL) {
+    sprintf(process_name, "%d", pid);
+  } else if (fgets(line_buf, 255, fp) == NULL) {
+    sprintf(process_name, "%d", pid);
+  } else if (sscanf(line_buf, "Name:%200s", process_name) == EOF) {
+    sprintf(process_name, "%d", pid);
+  }
+  fclose(fp);
 }
 
 void send_by_socket(int outfd, int fd, int isRead, const char *data,
-                    int data_len) {
+                    int data_len /* > 0 */) {
   struct serialize_socket_data *output_data =
       malloc(sizeof(serialize_socket_data) + data_len);
-  output_data->fd = fd;
-  memcpy(output_data->path, fd_status[fd].path, 108);
-  output_data->isRead = isRead;
-  output_data->data_len = data_len;
+  if (output_data == NULL) {
+    return;
+  }
+  static int first = 1;
+  static char processname[sizeof(((serialize_socket_data *)0)->process_name)];
+  if (first == 1) {
+    getprocessname(processname);
+    first = 0;
+  }
+  memcpy(output_data->process_name, processname, sizeof(processname));
+  memcpy(output_data->path, fd_status[fd].path, sizeof(fd_status[fd].path));
+  output_data->isRead = htons(isRead);
+  output_data->data_len = htonl(data_len);
   memcpy(output_data->data, data, data_len);
   if (send(outfd, output_data, sizeof(serialize_socket_data) + data_len,
            MSG_NOSIGNAL) <= 0) {
+    perror("send failed");
     status = UNINIT | UNCONNECT;
     close(outfd);
   }
   free(output_data);
-}
-
-void send_name_by_socket(int fd) {
-  pid_t pid = getpid();
-  char proc_pid_path[256];
-  char line_buf[256];
-  static init_socket_data init_data;
-  init_data.magic = MAGIC_CODE;
-  sprintf(proc_pid_path, "/proc/%d/status", pid);
-  FILE *fp = fopen(proc_pid_path, "r");
-  if (NULL != fp && fgets(line_buf, 255, fp) != NULL) {
-    int res = sscanf(line_buf, "Name:%255s", init_data.pid_name);
-    if (res == EOF) {
-      sprintf(init_data.pid_name, "%d", pid);
-    }
-    send(fd, &init_data, sizeof(init_data), MSG_NOSIGNAL);
-  }
-  fclose(fp);
 }
 
 int dispatch() {
@@ -165,7 +174,6 @@ int dispatch() {
   }
 
   if (status & UNCONNECT) {
-    printf("connecting\n");
     int old_errno = errno;
     if (-1 ==
         connect(fd, (struct sockaddr *)&service_addr, sizeof(service_addr))) {
@@ -173,9 +181,6 @@ int dispatch() {
       errno = old_errno;
       return 2;
     }
-    printf("connected\n");
-    send_name_by_socket(fd);
-    printf("first send\n");
     status = 0;
     return fd;
   }
@@ -184,7 +189,7 @@ int dispatch() {
 }
 
 void output(int fd, int isRead, const char *data, int data_len) {
-  if (!check_fd_unix(fd)) {
+  if (!check_fd_unix(fd) || data_len <= 0) {
     return;
   }
   lock();

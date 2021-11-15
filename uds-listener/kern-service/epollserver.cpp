@@ -103,7 +103,10 @@ void EpollServer::accept_new_client() {
 
 void EpollServer::clear_fd(int fd) {
   epoll_ctl(m_epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-  close(fd);
+  if (-1 == close(fd)) {
+    perror("close");
+    throw std::runtime_error("close fd");
+  }
 }
 
 void EpollServer::remove_client(int fd) {
