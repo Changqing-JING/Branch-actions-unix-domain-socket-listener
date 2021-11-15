@@ -192,10 +192,13 @@ void output(int fd, int isRead, const char *data, int data_len) {
   if (!check_fd_unix(fd) || data_len <= 0) {
     return;
   }
+  if (status == DEFAULT) {
+    return;
+  }
   lock();
   int outfd = dispatch();
   if (outfd == 2) {
-    send_by_stderr(fd, isRead, data, data_len);
+    // send_by_stderr(fd, isRead, data, data_len);
   } else {
     send_by_socket(outfd, fd, isRead, data, data_len);
   }

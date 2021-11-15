@@ -9,45 +9,14 @@
 #include <thread>
 
 #include "../../common/interface.h"
-#include "epollserver.h"
-#include "eventloop.h"
-#include "trustSocket.h"
-
-class Data {
-public:
-  char process_name[sizeof(((serialize_socket_data *)0)->process_name)];
-  char path[sizeof(((serialize_socket_data *)0)->path)];
-  decltype(((serialize_socket_data *)0)->isRead) isRead;
-  decltype(((serialize_socket_data *)0)->data_len) len;
-  void *p_data;
-  Data() : p_data(nullptr){};
-  Data(serialize_socket_data &_p, void *_data);
-  Data(Data const &a) { copy(a); }
-  Data &operator=(Data const &a) {
-    copy(a);
-    return *this;
-  }
-  Data(Data &&a) { move(std::move(a)); }
-  Data &operator=(Data &&a) {
-    move(std::move(a));
-    return *this;
-  }
-
-  ~Data() {
-    if (p_data != nullptr) {
-      (std::free(p_data));
-    }
-  }
-
-private:
-  void copy(Data const &a);
-  void move(Data &&a);
-};
+#include "./linux/epollserver.h"
+#include "./linux/eventloop.h"
+#include "data.h"
 
 enum ReceiverStatus : int8_t { INIT, START, STOPING, STOP };
 
 class Receiver {
-  EpollServer *m_eps;
+  Server *m_eps;
   std::mutex m_mutex;
   std::atomic<int8_t> m_status;
   std::condition_variable m_cv;

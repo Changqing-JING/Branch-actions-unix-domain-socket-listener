@@ -1,4 +1,4 @@
-project(uds-listener-nui)
+project(uds-forward)
 
 aux_source_directory(. srclists)
 add_executable(${PROJECT_NAME} ${srclists})

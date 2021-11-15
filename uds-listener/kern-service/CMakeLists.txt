@@ -1,5 +1,10 @@
 project(unix-domain-socket-receiver)
 
-aux_source_directory(. srclists)
-add_library(${PROJECT_NAME} ${srclists})
+aux_source_directory(. commonsrc)
+if(USEBOOST)
+  aux_source_directory(./asio specsrc)
+else()
+  aux_source_directory(./linux specsrc)
+endif()
+add_library(${PROJECT_NAME} ${commonsrc} ${specsrc})
 target_link_libraries(${PROJECT_NAME} PUBLIC pthread)

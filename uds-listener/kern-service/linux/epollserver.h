@@ -10,7 +10,7 @@
 
 const int MAX_EPOLL_EVENT = 10;
 
-class EpollServer {
+class Server {
 private:
   int m_epoll_fd;
   int m_listen_fd;
@@ -19,8 +19,8 @@ private:
   std::function<int(int)> m_on_recv_data;
 
 public:
-  EpollServer();
-  ~EpollServer();
+  Server();
+  ~Server();
   void init_server(uint16_t port, std::function<int(int)> on_recv_data);
   void server_loop();
   void accept_new_client();

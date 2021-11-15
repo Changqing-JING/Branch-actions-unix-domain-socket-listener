@@ -1,3 +1,7 @@
+#pragma once
+
+#include <stdint.h>
+
 const int32_t MAGIC_CODE = -1234;
 
 #pragma pack(1)

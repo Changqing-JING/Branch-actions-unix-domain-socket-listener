@@ -1,6 +1,6 @@
 
 if(UI)
-  add_subdirectory(qt-ui)
+  add_subdirectory(uds-display)
 endif()
-add_subdirectory(no-ui)
+add_subdirectory(uds-forward)
 add_subdirectory(kern-service)

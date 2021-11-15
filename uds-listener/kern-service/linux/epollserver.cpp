@@ -12,7 +12,7 @@
 
 #include "epollserver.h"
 
-EpollServer::EpollServer() : m_listen_fd(-1), m_connect_fds({}) {
+Server::Server() : m_listen_fd(-1), m_connect_fds({}) {
   m_epoll_fd = epoll_create(1);
   if (m_epoll_fd == -1) {
     perror("epoll create");
@@ -20,7 +20,7 @@ EpollServer::EpollServer() : m_listen_fd(-1), m_connect_fds({}) {
   }
 }
 
-EpollServer::~EpollServer() {
+Server::~Server() {
   clear_fd(m_listen_fd);
   for (auto fd : m_connect_fds) {
     clear_fd(fd);
@@ -28,13 +28,12 @@ EpollServer::~EpollServer() {
   close(m_epoll_fd);
 }
 
-void EpollServer::init_server(uint16_t port,
-                              std::function<int(int)> on_recv_data) {
+void Server::init_server(uint16_t port, std::function<int(int)> on_recv_data) {
   // set call back
   m_on_recv_data = on_recv_data;
   // init listener
   m_listen_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  EpollServer::set_nonblock(m_listen_fd);
+  Server::set_nonblock(m_listen_fd);
   sockaddr_in sockAddr{};
   sockAddr.sin_addr.s_addr = htonl(INADDR_ANY);
   sockAddr.sin_family = AF_INET;
@@ -58,7 +57,7 @@ void EpollServer::init_server(uint16_t port,
   }
 }
 
-void EpollServer::server_loop() {
+void Server::server_loop() {
   int eventCount = epoll_wait(m_epoll_fd, m_events, MAX_EPOLL_EVENT, 0);
   if (eventCount == -1) {
     perror("epoll wait");
@@ -83,7 +82,7 @@ void EpollServer::server_loop() {
   }
 }
 
-void EpollServer::accept_new_client() {
+void Server::accept_new_client() {
   sockaddr_in cli_addr{};
   uint32_t length = sizeof(cli_addr);
   int fd =
@@ -96,12 +95,12 @@ void EpollServer::accept_new_client() {
   // epollEvent.events = EPOLLIN | EPOLLET;
   epollEvent.events = EPOLLIN;
   epollEvent.data.fd = fd;
-  EpollServer::set_nonblock(fd);
+  Server::set_nonblock(fd);
   epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, fd, &epollEvent);
   m_connect_fds.insert(fd);
 }
 
-void EpollServer::clear_fd(int fd) {
+void Server::clear_fd(int fd) {
   epoll_ctl(m_epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
   if (-1 == close(fd)) {
     perror("close");
@@ -109,12 +108,12 @@ void EpollServer::clear_fd(int fd) {
   }
 }
 
-void EpollServer::remove_client(int fd) {
+void Server::remove_client(int fd) {
   clear_fd(fd);
   m_connect_fds.erase(fd);
 }
 
-void EpollServer::set_nonblock(int fd) {
+void Server::set_nonblock(int fd) {
   int flag = fcntl(fd, F_GETFL);
   if (flag == -1) {
     perror("fcntl");

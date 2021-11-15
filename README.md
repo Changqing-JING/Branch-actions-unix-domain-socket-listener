@@ -1,5 +1,5 @@
 # UNIX Domain Socket Listener
-It is
+It is a server-client unix domain socket listener
 
 
 ### How to Compile
