@@ -1,4 +1,5 @@
 #include <fstream>
+#include <getopt.h>
 
 #include "../kern-service/receiver.hpp"
 
@@ -46,8 +47,36 @@ void store(Receiver &recv, std::ofstream &outputfile) {
       STORE_GAP, [&recv, &outputfile]() { store(recv, outputfile); });
 }
 
-int main() {
-  std::ofstream outputfile("log.txt");
+int main(int argc, char *argv[]) {
+  int in_port = 12345;
+  int out_port = 12346; // todo
+  int out_file_argv_index = -1;
+
+  const struct option long_options[] = {{"in", required_argument, &in_port, 0},
+                                        {"out", required_argument, NULL, 0},
+                                        {"file", required_argument, NULL, 0},
+                                        {0, 0, 0, 0}};
+
+  int opt_index;
+  int opt;
+  while (getopt_long(argc, argv, "", long_options, &opt_index) != -1) {
+    switch (opt_index) {
+    case 0:
+      in_port = std::stoi(argv[optind - 1]);
+      break;
+    case 1:
+      out_port = std::stoi(argv[optind - 1]);
+      break;
+    case 2:
+      out_file_argv_index = optind - 1;
+      break;
+    default:
+      throw std::runtime_error("invaild argument");
+    }
+  }
+
+  std::ofstream outputfile{
+      out_file_argv_index == -1 ? "log.txt" : argv[out_file_argv_index]};
   if (!outputfile.is_open()) {
     throw std::runtime_error("output file failed");
   }
@@ -55,6 +84,6 @@ int main() {
 
   Eventloop::getInstance().insert_job(
       STORE_GAP, [&recv, &outputfile]() { store(recv, outputfile); });
-  recv.start(12345);
-  std::cout << "start server\n";
+  recv.start(static_cast<uint16_t>(in_port));
+  std::cout << "start server in " << in_port << std::endl;
 }
