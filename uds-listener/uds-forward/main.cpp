@@ -141,7 +141,7 @@ int main(int argc, char *argv[]) {
   int out_port = 22222;
   int out_file_argv_index = -1;
 
-  const struct option long_options[] = {{"in", required_argument, &in_port, 0},
+  const struct option long_options[] = {{"in", required_argument, NULL, 0},
                                         {"out", required_argument, NULL, 0},
                                         {"file", required_argument, NULL, 0},
                                         {0, 0, 0, 0}};
