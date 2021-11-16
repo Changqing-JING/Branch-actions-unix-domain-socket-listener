@@ -1,13 +1,15 @@
-#include "mainwindow.h"
+#include <iostream>
+
 #include "./ui_mainwindow.h"
+#include "mainwindow.h"
 
 constexpr int DATA_PRE_LINE = 20;
 const QStringList labels =
     QObject::tr("process,path,R/W,hex,str").simplified().split(",");
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow), m_recviver(),
-      m_timer(new QTimer{this}) {
+    : QMainWindow(parent), ui(new Ui::MainWindow), table_row(0), tcpdatalen(0),
+      m_timer(new QTimer{this}), tcpSocket(new QTcpSocket(this)) {
   ui->setupUi(this);
 
   QStandardItemModel *model = new QStandardItemModel();
@@ -29,9 +31,18 @@ MainWindow::MainWindow(QWidget *parent)
 
   QObject::connect(ui->StartListenButton, &QRadioButton::toggled, this,
                    &MainWindow::switchListenerStatus);
+
+  QObject::connect(tcpSocket, &QTcpSocket::readyRead, this,
+                   &MainWindow::addLine);
+  QObject::connect(tcpSocket, SIGNAL(error(QAbstractSocket::SocketError)), this,
+                   SLOT(displayError(QAbstractSocket::SocketError)));
 }
 
-MainWindow::~MainWindow() { delete ui; }
+MainWindow::~MainWindow() {
+  delete ui;
+  delete tcpSocket;
+  delete m_timer;
+}
 
 void MainWindow::switchListenerStatus(bool status) {
   if (status) {
@@ -42,74 +53,52 @@ void MainWindow::switchListenerStatus(bool status) {
 }
 
 void MainWindow::onListenerEnable() {
-  m_status = true;
-  m_port = ui->PortInput->value();
-  ui->ListenPortDisplay->display(m_port);
-  m_recviver.start(m_port);
-
-  QObject::connect(m_timer, &QTimer::timeout, this, &MainWindow::display);
-  m_timer->start(1000);
+  int port = ui->PortInput->value();
+  ui->ListenPortDisplay->display(port);
+  tcpSocket->connectToHost(ui->IPInput->text(), port);
 }
 
 void MainWindow::onListenerDisable() {
-  m_status = false;
-  m_port = 0;
-  ui->ListenPortDisplay->display(m_port);
-  m_recviver.stop();
+  ui->ListenPortDisplay->display(0);
+  tcpSocket->disconnectFromHost();
 }
 
-std::shared_ptr<std::string> hexData(void *data, int len) {
-  auto res = std::make_shared<std::string>();
-  for (int i = 0; i < len; i++) {
-    char t[3];
-    sprintf(t, "%02x", static_cast<uint8_t *>(data)[i]);
-    res->push_back(t[0]);
-    res->push_back(t[1]);
-    res->push_back(' ');
-    if ((i + 1) % DATA_PRE_LINE == 0) {
-      res->push_back('\n');
-    }
+void MainWindow::addLine() {
+  if (tcpdatalen == 0) {
+    QByteArray rawlen = tcpSocket->read(sizeof(uint32_t));
+    tcpdatalen = qFromBigEndian(*reinterpret_cast<uint32_t *>(rawlen.data()));
+    std::cout << tcpdatalen << std::endl;
   }
-  return res;
+  if (tcpSocket->bytesAvailable() < tcpdatalen) {
+    return;
+  }
+  QByteArray rawmsg = tcpSocket->read(tcpdatalen);
+  tcpdatalen = 0;
+  QString msg{rawmsg};
+  QStringList items = msg.split("\t");
+  if (items.length() != 5) {
+    std::cerr << "parser error\n";
+    return;
+  }
+
+  QStandardItemModel *model =
+      dynamic_cast<QStandardItemModel *>(ui->Data->model());
+  QStandardItem *item;
+  item = new QStandardItem(QString("%1").arg(items[0]));
+  model->setItem(table_row, 0, item);
+  item = new QStandardItem(QString("%1").arg(items[1]));
+  model->setItem(table_row, 1, item);
+  item = new QStandardItem(QString("%1").arg(items[2]));
+  model->setItem(table_row, 2, item);
+  item = new QStandardItem(QString("%1").arg(items[3]));
+  model->setItem(table_row, 3, item);
+  item = new QStandardItem(QString("%1").arg(items[4]));
+  model->setItem(table_row, 4, item);
+  ui->Data->resizeRowToContents(table_row);
+
+  table_row++;
 }
-std::shared_ptr<std::string> strData(void *data, int len) {
-  auto res = std::make_shared<std::string>();
-  for (int i = 0; i < len; i++) {
-    int ascii = static_cast<uint8_t *>(data)[i];
-    res->push_back(ascii > 20 ? ascii : 46);
-    if ((i + 1) % DATA_PRE_LINE == 0) {
-      res->push_back('\n');
-    }
-  }
-  return res;
-}
 
-void MainWindow::display() {
-  static int row = 0;
-  while (m_recviver.canPopMessage()) {
-    Data tmp = m_recviver.popMessage();
-
-    QStandardItemModel *model =
-        dynamic_cast<QStandardItemModel *>(ui->Data->model());
-    //定义item
-    QStandardItem *item;
-    item = new QStandardItem(QString("%1").arg(tmp.process_name));
-    model->setItem(row, 0, item);
-    item = new QStandardItem(QString("%1").arg(tmp.path));
-    model->setItem(row, 1, item);
-    item = new QStandardItem(QString("%1").arg(tmp.isRead ? "R" : "W"));
-    model->setItem(row, 2, item);
-    item = new QStandardItem(
-        QString("%1").arg(hexData(tmp.p_data, tmp.len)->data()));
-    model->setItem(row, 3, item);
-    item = new QStandardItem(
-        QString("%1").arg(strData(tmp.p_data, tmp.len)->data()));
-    model->setItem(row, 4, item);
-
-    ui->Data->resizeRowToContents(row);
-
-    row++;
-
-    ui->Data->show();
-  }
+void MainWindow::displayError(QAbstractSocket::SocketError) {
+  qDebug() << tcpSocket->errorString(); //输出错误信息
 }

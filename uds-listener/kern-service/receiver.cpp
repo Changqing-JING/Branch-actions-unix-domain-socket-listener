@@ -32,7 +32,6 @@ Data Receiver::popMessage() {
 }
 
 void Receiver::serverloop() {
-  std::cout << "serverloop\n";
   m_eps->server_loop();
   if (m_status != ReceiverStatus::STOPING) {
     Eventloop::getInstance().insert_job(1000, [this]() { this->serverloop(); });

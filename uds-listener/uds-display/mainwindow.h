@@ -3,8 +3,7 @@
 #include <QMainWindow>
 #include <QtCore/QTimer>
 #include <QtGui/QStandardItemModel>
-
-#include "../kern-service/receiver.hpp"
+#include <QtNetwork/QtNetwork>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -21,13 +20,15 @@ public:
 
 private:
   Ui::MainWindow *ui;
-  Receiver m_recviver;
+  QTcpSocket *tcpSocket;
+  uint32_t tcpdatalen;
   QTimer *m_timer;
-  bool m_status;
-  int m_port;
+  int table_row;
 
   void switchListenerStatus(bool status);
   void onListenerEnable();
   void onListenerDisable();
-  void display();
+  void addLine();
+private slots:
+  void displayError(QAbstractSocket::SocketError);
 };

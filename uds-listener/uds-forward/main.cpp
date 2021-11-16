@@ -1,12 +1,96 @@
+#include <cstring>
 #include <fstream>
 #include <getopt.h>
+#include <iostream>
+#include <mutex>
+#include <netinet/in.h>
+#include <set>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <vector>
 
 #include "../kern-service/receiver.hpp"
+
+class ForwardServer {
+  int listen_fd;
+  std::thread listen_th;
+  std::set<int> client_fds;
+  std::mutex set_mutex;
+
+public:
+  ForwardServer(int port) {
+    listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd == -1) {
+      perror("socket");
+      throw std::runtime_error("socket failed");
+    }
+    struct sockaddr_in localaddr;
+    std::memset(&localaddr, 0, sizeof(localaddr));
+    localaddr.sin_family = AF_INET;
+    localaddr.sin_port = htons(port);
+    localaddr.sin_addr.s_addr = INADDR_ANY;
+    int ret = bind(listen_fd, (struct sockaddr *)&localaddr, sizeof(localaddr));
+    if (ret == -1) {
+      perror("bind");
+      throw std::runtime_error("bind failed");
+    }
+    ret = listen(listen_fd, 10);
+    if (ret == -1) {
+      perror("listen");
+      throw std::runtime_error("listen failed");
+    }
+  }
+  ~ForwardServer() {
+    if (listen_th.joinable()) {
+      listen_th.join();
+    }
+    if (listen_fd != -1) {
+      close(listen_fd);
+    }
+  }
+  void start() {
+    listen_th = std::thread{[this]() {
+      for (;;) {
+        std::cout << "accept\n";
+        struct sockaddr_in remoteaddr;
+        socklen_t addr_len = sizeof(struct sockaddr);
+        int accept_fd =
+            ::accept(listen_fd, (struct sockaddr *)&remoteaddr, &addr_len);
+        std::cout << "connected successfully\n";
+        std::lock_guard<std::mutex> lo{set_mutex};
+        client_fds.insert(accept_fd);
+      }
+    }};
+  }
+  void send(std::string const &data) {
+    std::lock_guard<std::mutex> lo{set_mutex};
+    std::vector<int> error_fds{};
+    for (auto fd : client_fds) {
+      std::cout << "output " << fd << " " << data << std::endl;
+      uint32_t len = htonl(data.length());
+      int ret = ::send(fd, &len, sizeof(len), MSG_NOSIGNAL);
+      if (ret < sizeof(len)) {
+        perror("send");
+        error_fds.push_back(fd);
+        continue;
+      }
+      ret = ::send(fd, data.data(), data.length(), MSG_NOSIGNAL);
+      if (ret < data.length()) {
+        perror("send");
+        error_fds.push_back(fd);
+        continue;
+      }
+    }
+    for (auto fd : error_fds) {
+      client_fds.erase(fd);
+      close(fd);
+    }
+  }
+};
 
 constexpr int STORE_GAP = 1000;
 
 std::shared_ptr<std::string> hexData(void *data, int len) {
-  std::cout << "hexData len = " << len << std::endl;
   if (len == 0 || data == nullptr) {
     return std::make_shared<std::string>("");
   }
@@ -32,24 +116,29 @@ std::shared_ptr<std::string> strData(void *data, int len) {
   return res;
 }
 
-void store(Receiver &recv, std::ofstream &outputfile) {
-  std::cout << "store - " << recv.canPopMessage() << "\n";
+void output(Receiver &recv, std::ofstream &outputfile,
+            ForwardServer &outputserver) {
   while (recv.canPopMessage()) {
     Data tmp = recv.popMessage();
-    outputfile << tmp.process_name << "\t";
-    outputfile << tmp.path << "\t";
-    outputfile << (tmp.isRead ? "R" : "W") << "\t";
-    outputfile << hexData(tmp.p_data, tmp.len)->data() << "\t";
-    outputfile << strData(tmp.p_data, tmp.len)->data() << "\n";
+    using std::string;
+    string outputmsg{string(tmp.process_name) + string{"\t"} +
+                     string{tmp.path} + string{"\t"} +
+                     string{(tmp.isRead ? "R" : "W")} + string{"\t"} +
+                     *hexData(tmp.p_data, tmp.len) + string{"\t"} +
+                     *strData(tmp.p_data, tmp.len)};
+    outputfile << outputmsg << "\n";
+    outputserver.send(outputmsg);
   }
   outputfile.flush();
-  Eventloop::getInstance().insert_job(
-      STORE_GAP, [&recv, &outputfile]() { store(recv, outputfile); });
+  Eventloop::getInstance().insert_job(STORE_GAP,
+                                      [&recv, &outputfile, &outputserver]() {
+                                        output(recv, outputfile, outputserver);
+                                      });
 }
 
 int main(int argc, char *argv[]) {
   int in_port = 12345;
-  int out_port = 12346; // todo
+  int out_port = 22222;
   int out_file_argv_index = -1;
 
   const struct option long_options[] = {{"in", required_argument, &in_port, 0},
@@ -80,10 +169,20 @@ int main(int argc, char *argv[]) {
   if (!outputfile.is_open()) {
     throw std::runtime_error("output file failed");
   }
+
+  ForwardServer outputserver{out_port};
+
   Receiver recv{};
 
   Eventloop::getInstance().insert_job(
-      STORE_GAP, [&recv, &outputfile]() { store(recv, outputfile); });
-  recv.start(static_cast<uint16_t>(in_port));
-  std::cout << "start server in " << in_port << std::endl;
+      STORE_GAP, [&recv, &outputfile, &outputserver, in_port, out_port]() {
+        recv.start(static_cast<uint16_t>(in_port));
+        std::cout << "start input server in " << in_port << std::endl;
+        outputserver.start();
+        std::cout << "start output server in " << out_port << std::endl;
+        output(recv, outputfile, outputserver);
+      });
+  std::this_thread::sleep_until(
+      std::chrono::system_clock::now() +
+      std::chrono::hours(std::numeric_limits<int>::max()));
 }
