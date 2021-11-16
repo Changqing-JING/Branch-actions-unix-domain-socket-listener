@@ -18,6 +18,9 @@ else()
     message("CMAKE_C_FLAGS_RELEASE:${CMAKE_C_FLAGS_RELEASE}")
 endif()
 
-add_subdirectory(client)
+if(UNIX)
+    add_subdirectory(client)
+    add_subdirectory(test)
+endif()
 add_subdirectory(uds-listener)
-add_subdirectory(test)
+
